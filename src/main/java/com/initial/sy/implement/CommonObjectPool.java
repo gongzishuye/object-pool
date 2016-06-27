@@ -3,7 +3,7 @@ package com.initial.sy.implement;
 import com.initial.sy.ObjectFactory;
 import com.initial.sy.ObjectPool;
 
-import java.util.LinkedList;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * @author chen lu
@@ -17,7 +17,7 @@ public class CommonObjectPool<T> implements ObjectPool<T> {
 
     private int idleObject;
 
-    private LinkedList<T> allocationQueue = new LinkedList<T>();
+    private LinkedBlockingDeque<T> allocationQueue = new LinkedBlockingDeque<T>();
 
     private ObjectFactory factory = null;
 
@@ -43,17 +43,11 @@ public class CommonObjectPool<T> implements ObjectPool<T> {
     }
 
     public T borrowObject() {
-        synchronized (this) {
-            while(true) {
-                if(allocationQueue.size() > 0) {
-                    return allocationQueue.remove();
-                } else {
-                    try {
-                        wait(maxWaitTime);
-                    } catch (InterruptedException e) {
-                    }
-                }
-            }
+        T borrowedObj = allocationQueue.poll();
+        if(borrowedObj != null) {
+            return borrowedObj;
+        } else {
+            return (T)factory.makeObject();
         }
     }
 
@@ -61,13 +55,8 @@ public class CommonObjectPool<T> implements ObjectPool<T> {
         if(object == null) {
             return;
         }
-        synchronized (this) {
-            if(allocationQueue.size() < maxWaitTime) {
-                allocationQueue.addFirst(object);
-                notify();
-            } else {
-                factory.destroyObject(object);
-            }
+        if(!allocationQueue.offer(object)) {
+            factory.destroyObject(object);
         }
     }
 
